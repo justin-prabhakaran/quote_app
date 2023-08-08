@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -43,6 +44,7 @@ class _FactNumState extends State<_FactNum> {
   );
   bool _isLoading = true;
   List _facts = [];
+  late final sub;
 
   Future<void> _getFact() async {
     var url = Uri.parse('http://numbersapi.com/random/math');
@@ -61,11 +63,30 @@ class _FactNumState extends State<_FactNum> {
   void initState() {
     super.initState();
     _getfacts();
+    sub = Connectivity().onConnectivityChanged.listen((event) {
+      if (event == ConnectivityResult.mobile ||
+          event == ConnectivityResult.wifi) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+    });
     Future.delayed(const Duration(seconds: 5), () {
       setState(() {
         _isLoading = false;
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _facts.clear();
+    sub.cancel();
+    super.dispose();
   }
 
   void loadAd() {
@@ -198,10 +219,7 @@ class _FactNumState extends State<_FactNum> {
                 );
               },
               onSwipe: (pre, cur, dir) {
-                print(pre);
-                print(_facts.length);
-                if (cur == _facts.length - 3 && _facts.length < 30) {
-                  print('called');
+                if (cur == _facts.length - 3) {
                   _getfacts();
                 }
                 return true;

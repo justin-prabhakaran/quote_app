@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -44,7 +45,7 @@ class _AffirmationState extends State<_Affirmation> {
   late BannerAd _bannerAd;
   bool _isadLoaded = false;
   bool _isLoading = true;
-
+  late final sub;
   Future<void> _getAffirmation() async {
     var url = Uri.parse('https://www.affirmations.dev/');
     http.Response res = await http.get(url);
@@ -65,6 +66,18 @@ class _AffirmationState extends State<_Affirmation> {
     loadAd();
     super.initState();
     _getAffirmations();
+    sub = Connectivity().onConnectivityChanged.listen((event) {
+      if (event == ConnectivityResult.mobile ||
+          event == ConnectivityResult.wifi) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+    });
     Future.delayed(const Duration(seconds: 4), () {
       setState(() {
         _isLoading = false;
@@ -93,6 +106,7 @@ class _AffirmationState extends State<_Affirmation> {
   @override
   void dispose() {
     _affirmation.clear();
+    sub.cancel();
     super.dispose();
   }
 
@@ -210,11 +224,7 @@ class _AffirmationState extends State<_Affirmation> {
                 );
               },
               onSwipe: (pre, cur, dir) {
-                print(pre);
-                print(_affirmation.length);
-                if (cur == _affirmation.length - 3 &&
-                    _affirmation.length < 30) {
-                  print('called');
+                if (cur == _affirmation.length - 3) {
                   _getAffirmations();
                 }
                 return true;

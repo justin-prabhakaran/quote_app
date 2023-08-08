@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -31,12 +32,26 @@ class _StoicState extends State<_Stoic> {
   List _insQoute = [];
   GlobalKey<AnimatedListState> _key = GlobalKey();
   late BannerAd _bannerAd;
+  bool _isLoading = false;
   bool _isadLoaded = false;
+  late final sub;
 
   @override
   void initState() {
     loadAd();
     super.initState();
+    sub = Connectivity().onConnectivityChanged.listen((event) {
+      if (event == ConnectivityResult.mobile ||
+          event == ConnectivityResult.wifi) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+    });
   }
 
   void loadAd() {
@@ -58,128 +73,139 @@ class _StoicState extends State<_Stoic> {
   }
 
   @override
+  void dispose() {
+    _insQoute.clear();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
         title: const Text('Stoic Quotes'),
       ),
-      body: Column(
-        children: [
-          Flexible(
-            child: AnimatedList(
-                key: _key,
-                controller: _scrollController,
-                initialItemCount: _insQoute.length,
-                itemBuilder: (context, index, animation) {
-                  return SlideTransition(
-                    position: animation.drive(Tween<Offset>(
-                        begin: const Offset(0, 1), end: const Offset(0, 0))),
-                    child: Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      color: Colors.white,
-                      elevation: 3,
-                      child: Slidable(
-                        startActionPane: ActionPane(
-                          extentRatio: 0.4,
-                          motion: const ScrollMotion(),
-                          children: [
-                            SlidableAction(
-                              onPressed: (context) {
-                                db.add({
-                                  'quote': _insQoute[index].qoute,
-                                  'author': _insQoute[index].author,
-                                  'type': 'Stoic Quotes'
-                                });
-                                var _snackbar = const SnackBar(
-                                  content: Center(
-                                    child: Text(
-                                      "Added to Bookmarks successfully",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  elevation: 10,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: Duration(seconds: 1),
-                                );
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(_snackbar);
-                              },
-                              backgroundColor: Colors.green,
-                              label: 'Bookmarks',
-                              borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(10.0),
-                                  bottomLeft: Radius.circular(10.0)),
-                            )
-                          ],
-                        ),
-                        endActionPane: ActionPane(
-                          extentRatio: 0.3,
-                          motion: const ScrollMotion(),
-                          children: [
-                            SlidableAction(
-                              onPressed: (context) {
-                                _insQoute.removeAt(index);
-                                _key.currentState!.removeItem(
-                                    index, (context, animation) => SizedBox());
-                                var _snackbar = const SnackBar(
-                                  content: Center(
-                                    child: Text(
-                                      "Deleted successfully",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  elevation: 10,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: Duration(seconds: 1),
-                                );
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(_snackbar);
-                              },
-                              backgroundColor: Colors.redAccent,
-                              label: 'Delete',
-                              borderRadius: const BorderRadius.only(
-                                  topRight: Radius.circular(10.0),
-                                  bottomRight: Radius.circular(10.0)),
-                            )
-                          ],
-                        ),
-                        child: ListTile(
-                          title: Text('${_insQoute[index].qoute}'),
-                          subtitle: Text(
-                            '  - ${_insQoute[index].author}',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                          onLongPress: () async {
-                            await Clipboard.setData(ClipboardData(
-                                text:
-                                    '${_insQoute[index].qoute} \n - ${_insQoute[index].author}'));
-                            var _snackbar = const SnackBar(
-                              content: Center(
-                                child: Text(
-                                  "Copied Successfully",
-                                  style: TextStyle(color: Colors.white),
-                                ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Flexible(
+                  child: AnimatedList(
+                      key: _key,
+                      controller: _scrollController,
+                      initialItemCount: _insQoute.length,
+                      itemBuilder: (context, index, animation) {
+                        return SlideTransition(
+                          position: animation.drive(Tween<Offset>(
+                              begin: const Offset(0, 1),
+                              end: const Offset(0, 0))),
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            color: Colors.white,
+                            elevation: 3,
+                            child: Slidable(
+                              startActionPane: ActionPane(
+                                extentRatio: 0.4,
+                                motion: const ScrollMotion(),
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (context) {
+                                      db.add({
+                                        'quote': _insQoute[index].qoute,
+                                        'author': _insQoute[index].author,
+                                        'type': 'Stoic Quotes'
+                                      });
+                                      var _snackbar = const SnackBar(
+                                        content: Center(
+                                          child: Text(
+                                            "Added to Bookmarks successfully",
+                                            style:
+                                                TextStyle(color: Colors.white),
+                                          ),
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        elevation: 10,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: Duration(seconds: 1),
+                                      );
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(_snackbar);
+                                    },
+                                    backgroundColor: Colors.green,
+                                    label: 'Bookmarks',
+                                    borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(10.0),
+                                        bottomLeft: Radius.circular(10.0)),
+                                  )
+                                ],
                               ),
-                              backgroundColor: Colors.green,
-                              elevation: 10,
-                              behavior: SnackBarBehavior.floating,
-                              duration: Duration(seconds: 1),
-                            );
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(_snackbar);
-                          },
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-          ),
-        ],
-      ),
+                              endActionPane: ActionPane(
+                                extentRatio: 0.3,
+                                motion: const ScrollMotion(),
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (context) {
+                                      _insQoute.removeAt(index);
+                                      _key.currentState!.removeItem(index,
+                                          (context, animation) => SizedBox());
+                                      var _snackbar = const SnackBar(
+                                        content: Center(
+                                          child: Text(
+                                            "Deleted successfully",
+                                            style:
+                                                TextStyle(color: Colors.white),
+                                          ),
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        elevation: 10,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: Duration(seconds: 1),
+                                      );
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(_snackbar);
+                                    },
+                                    backgroundColor: Colors.redAccent,
+                                    label: 'Delete',
+                                    borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(10.0),
+                                        bottomRight: Radius.circular(10.0)),
+                                  )
+                                ],
+                              ),
+                              child: ListTile(
+                                title: Text('${_insQoute[index].qoute}'),
+                                subtitle: Text(
+                                  '  - ${_insQoute[index].author}',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                                onLongPress: () async {
+                                  await Clipboard.setData(ClipboardData(
+                                      text:
+                                          '${_insQoute[index].qoute} \n - ${_insQoute[index].author}'));
+                                  var _snackbar = const SnackBar(
+                                    content: Center(
+                                      child: Text(
+                                        "Copied Successfully",
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                    backgroundColor: Colors.green,
+                                    elevation: 10,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: Duration(seconds: 1),
+                                  );
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(_snackbar);
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                ),
+              ],
+            ),
       floatingActionButton: SpeedDial(
         closeManually: true,
         overlayOpacity: 0,

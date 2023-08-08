@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_card_swiper/flutter_card_swiper.dart';
@@ -42,11 +43,13 @@ class _AdviceState extends State<_Advice> {
   );
   bool _isLoading = true;
   List _advice = [];
+  late final sub;
 
   Future<void> _getAdvice() async {
     var url = Uri.parse('https://api.adviceslip.com/advice');
     var res = await http.get(url);
     var js = jsonDecode(res.body);
+
     setState(() {
       _advice.add(js['slip']['advice']);
     });
@@ -60,14 +63,33 @@ class _AdviceState extends State<_Advice> {
 
   @override
   void initState() {
+    _getAdvices();
     loadAd();
     super.initState();
-    _getAdvices();
-    Future.delayed(const Duration(seconds: 5), () {
+    sub = Connectivity().onConnectivityChanged.listen((event) {
+      if (event == ConnectivityResult.mobile ||
+          event == ConnectivityResult.wifi) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+    });
+    Future.delayed(const Duration(seconds: 3), () {
       setState(() {
         _isLoading = false;
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _advice.clear();
+    sub.cancel();
+    super.dispose();
   }
 
   bool _isadLoaded = false;
@@ -82,11 +104,11 @@ class _AdviceState extends State<_Advice> {
           });
         }, onAdFailedToLoad: (ad, error) {
           setState(() {
-            _isadLoaded = true;
+            _isadLoaded = false;
             ad.dispose();
           });
         }),
-        request: AdRequest());
+        request: const AdRequest());
     _bannerAd.load();
   }
 
@@ -155,7 +177,7 @@ class _AdviceState extends State<_Advice> {
                             child: Text(
                               _advice[index],
                               style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 19,
                                 color: Colors.black,
                               ),
                               textAlign: TextAlign.center,
@@ -204,10 +226,7 @@ class _AdviceState extends State<_Advice> {
                   );
                 },
                 onSwipe: (pre, cur, dir) {
-                  print(pre);
-                  print(_advice.length);
-                  if (cur == _advice.length - 3 && _advice.length < 30) {
-                    print('called');
+                  if (cur == _advice.length - 3) {
                     _getAdvices();
                   }
                   return true;

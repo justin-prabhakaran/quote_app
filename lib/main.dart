@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'data.dart';
 import 'nav.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,7 +35,7 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Garamond',
           scaffoldBackgroundColor: Colors.white,
           appBarTheme: const AppBarTheme(backgroundColor: Colors.white)),
-      title: 'Random Quote',
+      title: 'Boost Your Life',
       home: const HomePage(),
     );
   }
@@ -51,24 +52,51 @@ class _HomePageState extends State<HomePage> {
   late BannerAd _bannerAd;
   bool _isadLoaded = false;
   final db = Hive.box('MyDatabase');
+  bool _isLoading = false;
 
   //====================================================
   final List<Quote> _quote = [];
   final GlobalKey<AnimatedListState> _key = GlobalKey();
   final ScrollController _scrollcontroller = ScrollController();
+  late final sub;
 
   Future<void> getQoute() async {
     var url = Uri.parse('https://api.quotable.io/quotes/random');
     var res = await http.get(url);
-    var js = jsonDecode(res.body);
-    _quote.add(Quote(js[0]['content'], js[0]['author']));
-    _key.currentState!.insertItem(_quote.length - 1);
+    if (res.statusCode == 200) {
+      var js = jsonDecode(res.body);
+      _quote.add(Quote(js[0]['content'], js[0]['author']));
+      _key.currentState!.insertItem(_quote.length - 1);
+    } else {
+      setState(() {
+        _isLoading = true;
+      });
+    }
   }
 
   @override
   void initState() {
     loadAd();
     super.initState();
+    sub = Connectivity().onConnectivityChanged.listen((event) {
+      if (event == ConnectivityResult.mobile ||
+          event == ConnectivityResult.wifi) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _quote.clear();
+    sub.cancel();
+    super.dispose();
   }
 
   void loadAd() {
@@ -78,10 +106,8 @@ class _HomePageState extends State<HomePage> {
         listener: BannerAdListener(onAdLoaded: (ad) {
           setState(() {
             _isadLoaded = true;
-            debugPrint('Ad Loaded');
           });
         }, onAdFailedToLoad: (ad, error) {
-          debugPrint('Error to load');
           ad.dispose();
           setState(() {
             _isadLoaded = false;
@@ -101,132 +127,140 @@ class _HomePageState extends State<HomePage> {
       drawer: const NavBar(),
       appBar: AppBar(
         centerTitle: true,
-        title: const Text('Random Quote App'),
+        title: const Text('Random Quotes'),
       ),
-      body: Column(
-        children: [
-          const SizedBox(
-            height: 20,
-          ),
-          Flexible(
-            child: AnimatedList(
-                key: _key,
-                controller: _scrollcontroller,
-                initialItemCount: _quote.length,
-                itemBuilder: (context, index, animation) {
-                  return SlideTransition(
-                    position: animation.drive(
-                      Tween<Offset>(
-                        begin: const Offset(0, 1),
-                        end: const Offset(0, 0),
-                      ),
-                    ),
-                    child: Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      color: Colors.white,
-                      elevation: 1,
-                      child: Slidable(
-                        startActionPane: ActionPane(
-                          extentRatio: 0.4,
-                          motion: const ScrollMotion(),
-                          children: [
-                            SlidableAction(
-                              onPressed: (context) {
-                                db.add({
-                                  'quote': _quote[index].qoute,
-                                  'author': _quote[index].author,
-                                  'type': 'Random'
-                                });
-                                var _snackbar = const SnackBar(
-                                  content: Center(
-                                    child: Text(
-                                      "Added to Bookmarks successfully",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  elevation: 10,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: Duration(seconds: 1),
-                                );
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(_snackbar);
-                              },
-                              backgroundColor: Colors.green,
-                              label: 'Bookmark',
-                              borderRadius: const BorderRadius.only(
-                                  topLeft: Radius.circular(10.0),
-                                  bottomLeft: Radius.circular(10.0)),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : Column(
+              children: [
+                const SizedBox(
+                  height: 20,
+                ),
+                Flexible(
+                  child: AnimatedList(
+                      key: _key,
+                      controller: _scrollcontroller,
+                      initialItemCount: _quote.length,
+                      itemBuilder: (context, index, animation) {
+                        return SlideTransition(
+                          position: animation.drive(
+                            Tween<Offset>(
+                              begin: const Offset(0, 1),
+                              end: const Offset(0, 0),
                             ),
-                          ],
-                        ),
-                        endActionPane: ActionPane(
-                          extentRatio: 0.3,
-                          motion: const ScrollMotion(),
-                          children: [
-                            SlidableAction(
-                              onPressed: (context) {
-                                _quote.removeAt(index);
-                                _key.currentState!.removeItem(index,
-                                    (context, animation) => const SizedBox());
-                                setState(() {});
-                                var _snackbar = const SnackBar(
-                                  content: Center(
-                                    child: Text(
-                                      "Deleted Successfully",
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.green,
-                                  elevation: 10,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: Duration(seconds: 1),
-                                );
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(_snackbar);
-                              },
-                              backgroundColor: Colors.redAccent,
-                              label: 'Delete',
-                              borderRadius: const BorderRadius.only(
-                                  topRight: Radius.circular(10.0),
-                                  bottomRight: Radius.circular(10.0)),
-                            ),
-                          ],
-                        ),
-                        child: ListTile(
-                          title: Text('${_quote[index].qoute}'),
-                          subtitle: Text(
-                            '  - ${_quote[index].author}',
-                            style: const TextStyle(color: Colors.grey),
                           ),
-                          onLongPress: () async {
-                            await Clipboard.setData(ClipboardData(
-                                text:
-                                    '${_quote[index].qoute}   \n- ${_quote[index].author}'));
-                            var _snackbar = const SnackBar(
-                              content: Center(
-                                child: Text(
-                                  "Copied Successfully",
-                                  style: TextStyle(color: Colors.white),
-                                ),
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            color: Colors.white,
+                            elevation: 1,
+                            child: Slidable(
+                              startActionPane: ActionPane(
+                                extentRatio: 0.4,
+                                motion: const ScrollMotion(),
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (context) {
+                                      db.add({
+                                        'quote': _quote[index].qoute,
+                                        'author': _quote[index].author,
+                                        'type': 'Random'
+                                      });
+                                      var _snackbar = const SnackBar(
+                                        content: Center(
+                                          child: Text(
+                                            "Added to Bookmarks successfully",
+                                            style:
+                                                TextStyle(color: Colors.white),
+                                          ),
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        elevation: 10,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: Duration(seconds: 1),
+                                      );
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(_snackbar);
+                                    },
+                                    backgroundColor: Colors.green,
+                                    label: 'Bookmark',
+                                    borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(10.0),
+                                        bottomLeft: Radius.circular(10.0)),
+                                  ),
+                                ],
                               ),
-                              backgroundColor: Colors.green,
-                              elevation: 10,
-                              behavior: SnackBarBehavior.floating,
-                              duration: Duration(seconds: 1),
-                            );
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(_snackbar);
-                          },
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-          ),
-        ],
-      ),
+                              endActionPane: ActionPane(
+                                extentRatio: 0.3,
+                                motion: const ScrollMotion(),
+                                children: [
+                                  SlidableAction(
+                                    onPressed: (context) {
+                                      _quote.removeAt(index);
+                                      _key.currentState!.removeItem(
+                                          index,
+                                          (context, animation) =>
+                                              const SizedBox());
+                                      setState(() {});
+                                      var _snackbar = const SnackBar(
+                                        content: Center(
+                                          child: Text(
+                                            "Deleted Successfully",
+                                            style:
+                                                TextStyle(color: Colors.white),
+                                          ),
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        elevation: 10,
+                                        behavior: SnackBarBehavior.floating,
+                                        duration: Duration(seconds: 1),
+                                      );
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(_snackbar);
+                                    },
+                                    backgroundColor: Colors.redAccent,
+                                    label: 'Delete',
+                                    borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(10.0),
+                                        bottomRight: Radius.circular(10.0)),
+                                  ),
+                                ],
+                              ),
+                              child: ListTile(
+                                title: Text('${_quote[index].qoute}'),
+                                subtitle: Text(
+                                  '  - ${_quote[index].author}',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                                onLongPress: () async {
+                                  await Clipboard.setData(ClipboardData(
+                                      text:
+                                          '${_quote[index].qoute}   \n- ${_quote[index].author}'));
+                                  var _snackbar = const SnackBar(
+                                    content: Center(
+                                      child: Text(
+                                        "Copied Successfully",
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                    backgroundColor: Colors.green,
+                                    elevation: 10,
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: Duration(seconds: 1),
+                                  );
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(_snackbar);
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                ),
+              ],
+            ),
       floatingActionButton: SpeedDial(
         closeManually: true,
         overlayOpacity: 0,

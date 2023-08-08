@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -27,6 +28,8 @@ class _JokesState extends State<_Jokes> {
   bool _isadLoaded = false;
   late List _jokes;
   late ScrollController _scrollcontroller;
+  late final sub;
+  bool _isLoading = false;
   GlobalKey<AnimatedListState> _key = GlobalKey();
 
   @override
@@ -34,6 +37,24 @@ class _JokesState extends State<_Jokes> {
     _jokes = [];
     _scrollcontroller = ScrollController();
     super.initState();
+    sub = Connectivity().onConnectivityChanged.listen((event) {
+      if (event == ConnectivityResult.mobile ||
+          event == ConnectivityResult.wifi) {
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _jokes.clear();
+    super.dispose();
   }
 
   void loadAd() {
@@ -59,7 +80,7 @@ class _JokesState extends State<_Jokes> {
         'https://v2.jokeapi.dev/joke/Any?blacklistFlags=nsfw,religious,political,racist,sexist,explicit&type=twopart');
     var res = await http.get(url);
     var js = jsonDecode(res.body);
-    debugPrint(res.body);
+
     _jokes.add(Joke(js['category'], js['setup'], js['delivery'], false));
     _key.currentState!.insertItem(_jokes.length - 1);
   }
@@ -69,7 +90,6 @@ class _JokesState extends State<_Jokes> {
     if (!_jokes[index].visibility) {
       setState(() {
         _jokes[index].visibility = true;
-        debugPrint('changed : ${_jokes[index].visibility}');
       });
     } else {}
   }
@@ -81,42 +101,45 @@ class _JokesState extends State<_Jokes> {
         centerTitle: true,
         title: const Text('Random Jokes'),
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 10),
-          Flexible(
-            child: AnimatedList(
-                key: _key,
-                initialItemCount: _jokes.length,
-                controller: _scrollcontroller,
-                itemBuilder: (context, index, animation) {
-                  refresh(index);
-                  return SlideTransition(
-                    position: animation.drive(Tween<Offset>(
-                        begin: const Offset(0, 1), end: const Offset(0, 0))),
-                    child: Card(
-                      elevation: 1,
-                      child: ListTile(
-                        title: Text(
-                          _jokes[index].setup,
-                          style: const TextStyle(
-                              fontSize: 16, color: Colors.redAccent),
-                        ),
-                        subtitle: Visibility(
-                          visible: _jokes[index].visibility,
-                          child: Text(
-                            _jokes[index].delivery,
-                            style: const TextStyle(
-                                fontSize: 16, color: Colors.blue),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                const SizedBox(height: 10),
+                Flexible(
+                  child: AnimatedList(
+                      key: _key,
+                      initialItemCount: _jokes.length,
+                      controller: _scrollcontroller,
+                      itemBuilder: (context, index, animation) {
+                        refresh(index);
+                        return SlideTransition(
+                          position: animation.drive(Tween<Offset>(
+                              begin: const Offset(0, 1),
+                              end: const Offset(0, 0))),
+                          child: Card(
+                            elevation: 1,
+                            child: ListTile(
+                              title: Text(
+                                _jokes[index].setup,
+                                style: const TextStyle(
+                                    fontSize: 16, color: Colors.redAccent),
+                              ),
+                              subtitle: Visibility(
+                                visible: _jokes[index].visibility,
+                                child: Text(
+                                  _jokes[index].delivery,
+                                  style: const TextStyle(
+                                      fontSize: 16, color: Colors.blue),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-          ),
-        ],
-      ),
+                        );
+                      }),
+                ),
+              ],
+            ),
       floatingActionButton: SpeedDial(
         animatedIcon: AnimatedIcons.menu_close,
         closeManually: true,
